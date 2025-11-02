@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <!-- 
+        Pembaruan: Mencegah zoom dan copy text di mobile
+        user-scalable=no: Mencegah zoom
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistem Unggah Foto</title>
+    <!-- Memuat Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Memuat font "Inter" (mirip dengan font San Francisco Apple) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Memuat Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* Menerapkan font Inter sebagai default */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Transisi halus untuk perubahan tema (opsional) */
+            transition: background-color 0.3s ease;
+
+            /* Pembaruan: Mencegah copy text (pemilihan teks)
+                -webkit-user-select: none; : Untuk browser Safari/WebKit
+                -ms-user-select: none;   : Untuk Internet Explorer
+                user-select: none;       : Standar modern
+            */
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /*
+         * Gaya Kustom untuk "Glassmorphism"
+        */
+        .glass-card {
+            background-color: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /*
+         * Menyesuaikan tampilan <select> agar sesuai dengan tema Apple HIG
+        */
+        .custom-select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="%236b7280" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>');
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.25em;
+        }
+
+        /* * Helper class untuk transisi "morph" (max-height)
+         * (Diperbarui dari slide menjadi morph)
+        */
+        .section-hidden {
+            opacity: 0;
+            max-height: 0;
+            /* Kita gunakan 'hidden' untuk menghapus dari layout & tab-index */
+            /* display: none; -> Digantikan oleh max-height */
+        }
+        
+        .section-visible {
+            opacity: 1;
+            /* Atur max-height ke nilai yang cukup besar */
+            max-height: 1000px; 
+            /* display: block; -> Digantikan oleh max-height */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- 
+        =================================
+        SPLASH SCREEN (ANIMASI PEMBUKA)
+        =================================
+    -->
+    <div id="splashScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-100 transition-opacity duration-500 ease-in-out">
+        <!-- Logo (Akan dianimasikan) -->
+        <img id="splashLogo" src="https://xiuvhvcoqzsrewxwxypa.supabase.co/storage/v1/object/sign/elemnt/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
+             alt="Logo PPMU" class="h-24 object-contain transition-all duration-1000 ease-in-out">
+        
+        <!-- Teks Selamat Datang (Awalnya tersembunyi) -->
+        <div class="text-center mt-6">
+            <!-- (Diperbarui: Teks diubah) -->
+            <p id="splashText1" class="text-xl text-gray-700 opacity-0 transform translate-y-3 transition-all duration-1000 ease-in-out">Selamat Datang</p>
+            <h1 id="splashText2" class="text-3xl font-bold text-[#0D6E54] opacity-0 transform translate-y-3 transition-all duration-1000 ease-in-out">MAS XII - MUBAKID 2025</h1>
+        </div>
+    </div>
+
+
+    <!-- Latar belakang gradien halus (Elemen Desain) -->
+    <div class="absolute inset-0 -z-10 h-full w-full bg-white bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-[size:6rem_4rem]">
+        <div class="absolute bottom-0 left-0 right-0 top-0 bg-[radial-gradient(circle_800px_at_100%_200px,#99C7BB,transparent)]"></div>
+    </div>
+
+    <!-- Kontainer Utama Aplikasi -->
+    <!-- (Diperbarui) Tambahkan ID dan kelas untuk transisi fade-in -->
+    <div id="mainApp" class="flex items-center justify-center min-h-screen p-4 opacity-0 transition-opacity duration-1000 ease-in-out">
+        
+        <div class="w-full max-w-md space-y-4">
+            
+            <!-- Header Aplikasi -->
+            <header class="text-center mb-8">
+                <img src="https://xiuvhvcoqzsrewxwxypa.supabase.co/storage/v1/object/sign/elemnt/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
+                     alt="Logo PPMU" class="mx-auto mb-4 h-20 object-contain">
+                <h1 class="text-2xl font-bold text-[#0D6E54]">MAS XII - MUBAKID</h1>
+                <p class="text-gray-600">Sistem Unggah Foto</p>
+            </header>
+
+            <!-- 
+                =================================
+                LANGKAH 1: PILIH DAERAH (KATEGORI)
+                =================================
+                (Pembaruan: Ditambahkan overflow-hidden untuk transisi morph)
+            -->
+            <section id="step1-category" class="section-visible transition-all duration-500 ease-in-out overflow-hidden">
+                <div class="glass-card p-6 rounded-2xl shadow-lg">
+                    <!-- (Diperbarui: Label dari Asrama kembali ke Daerah) -->
+                    <label for="categorySelect" class="block text-sm font-medium text-gray-700 mb-2">Daerah</label>
+                    <div class="relative">
+                        <select id="categorySelect" class="custom-select w-full px-4 py-3 bg-white/70 border border-gray-300/50 rounded-xl text-[#0D6E54] focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+                            <option value="" disabled selected>Pilih Daerah...</option>
+                            <!-- Opsi dimuat oleh JavaScript dari Supabase -->
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 
+                =================================
+                LANGKAH 2: PILIH NAMA
+                =================================
+                (Awalnya tersembunyi)
+                (Pembaruan: Ditambahkan overflow-hidden untuk transisi morph)
+            -->
+            <section id="step2-name" class="section-hidden transition-all duration-500 ease-in-out overflow-hidden">
+                <div class="glass-card p-6 rounded-2xl shadow-lg">
+                    <label for="nameSelect" class="block text-sm font-medium text-gray-700 mb-2">Nama Siswa</label>
+                    <div class="relative">
+                        <select id="nameSelect" class="custom-select w-full px-4 py-3 bg-white/70 border border-gray-300/50 rounded-xl text-[#0D6E54] focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+                            <option value="" disabled selected>Pilih Nama...</option>
+                            <!-- Opsi dimuat oleh JavaScript dari Supabase -->
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 
+                =================================
+                LANGKAH 3: KARTU UNGGAH FOTO
+                =================================
+                (Awalnya tersembunyi)
+                (Pembaruan: Ditambahkan overflow-hidden untuk transisi morph)
+            -->
+            <section id="step3-upload" class="section-hidden transition-all duration-500 ease-in-out overflow-hidden">
+                <div class="glass-card p-6 rounded-2xl shadow-lg">
+                    
+                    <!-- Judul dinamis -->
+                    <div class="mb-4 text-center">
+                        <p class="text-sm text-gray-600">Unggah untuk:</p>
+                        <h2 id="uploadTitle" class="text-lg font-semibold text-[#0D6E54]"></h2>
+                    </div>
+
+                    <!-- 1. Dropzone (Area Unggah) - VERSI MINIMALIS -->
+                    <div id="dropZone" class="relative block w-full bg-white/50 rounded-xl p-8 text-center cursor-pointer hover:bg-white/90 transition-all duration-200 border border-gray-300/50">
+                        <!-- Ikon Unggah Minimalis (SVG) -->
+                        <div class="flex justify-center mb-3">
+                            <svg class="w-8 h-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                            </svg>
+                        </div>
+                        
+                        <p class="text-sm font-medium text-gray-700">
+                            Seret file ke sini atau 
+                            <!-- Label ini akan memicu input file -->
+                            <label for="fileInput" class="text-blue-600 hover:text-blue-700 cursor-pointer">pilih dari perangkat</label>
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">Hanya JPG, PNG, WEBP</p>
+                        
+                        <!-- Tombol "Pilih file" yang tersembunyi -->
+                        <input type="file" id="fileInput" class="hidden" accept="image/jpeg, image/png, image/webp">
+                    </div>
+
+                    <!-- 2. Preview State (Konfirmasi Unggah) - DIHAPUS -->
+
+                    <!-- 3. Loading State (Indikator Proses) -->
+                    <div id="loadingState" class="hidden text-center p-8">
+                        <!-- Ikon Spinner (SVG) -->
+                        <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-sm font-medium text-gray-700">Memproses & Mengunggah...</p>
+                        <p class="text-xs text-gray-500">Mohon tunggu sebentar.</p>
+                    </div>
+
+                    <!-- 4. Success State (Pesan Berhasil) -->
+                    <div id="successState" class="hidden text-center p-8">
+                        <!-- Ikon Check (SVG) -->
+                        <div class="flex justify-center mb-4">
+                            <svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-[#0D6E54]">Unggah Berhasil!</h3>
+                        <p class="text-sm text-gray-600 mt-2">File disimpan sebagai:</p>
+                        <code id="successPath" class="block text-sm bg-gray-100 text-green-700 px-3 py-2 rounded-md mt-2 break-all"></code>
+                        
+                        <!-- Tombol Reset & Review (Grup Tombol) -->
+                        <div class="mt-6 w-full space-y-3 sm:space-y-0 sm:flex sm:flex-row-reverse sm:space-x-3 sm:space-x-reverse">
+                            <button id="resetButton" class="w-full bg-blue-600 text-white font-medium py-3 px-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                Unggah Foto Lain
+                            </button>
+                            <button id="reviewButton" class="w-full bg-white text-[#0D6E54] border border-[#0D6E54] font-medium py-3 px-4 rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 transition-all duration-200">
+                                Lihat Foto
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- 
+        =================================
+        MODAL PRATINJAU FOTO
+        =================================
+        (Awalnya tersembunyi)
+    -->
+    <div id="reviewModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-4 sm:p-6 relative transition-transform duration-300 scale-95 opacity-0" id="modalContent">
+            <!-- Tombol Close (X) -->
+            <button id="closeModalButton" class="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow-lg text-gray-600 hover:text-gray-900 transition-all active:scale-90 z-10">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            
+            <h3 class="text-lg font-semibold text-[#0D6E54] mb-4">Pratinjau Foto</h3>
+            
+            <!-- Kontainer Gambar -->
+            <div class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                <!-- Gambar akan dimuat di sini oleh JS -->
+                <img id="reviewImage" src="" alt="Pratinjau Foto yang Diunggah" class="w-full h-full object-contain">
+            </div>
+            
+            <!-- Judul Nama di bawah gambar -->
+            <p id="reviewImageName" class="text-center text-base font-medium text-gray-700 mt-3"></p>
+
+            <!-- Tombol Aksi Modal -->
+            <div class="mt-6 w-full space-y-3 sm:space-y-0 sm:flex sm:flex-row-reverse sm:space-x-3 sm:space-x-reverse">
+                <button id="modalTutupButton" class="w-full bg-blue-600 text-white font-medium py-3 px-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Tutup
+                </button>
+                <button id="modalGantiButton" class="w-full bg-white text-gray-700 border border-gray-300 font-medium py-3 px-4 rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 transition-all duration-200">
+                    Ganti Foto
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // Menunggu DOM (HTML) selesai dimuat sebelum menjalankan skrip
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // === KONFIGURASI SUPABASE ===
+            const supabaseUrl = 'https://vdpawbmzttmvfcissdrr.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkcGF3Ym16dHRtdmZjaXNzZHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwNTEyNTQsImV4cCI6MjA3NzYyNzI1NH0.JcL-kA4DCW1jYB-fRoZ-ZF1VaXbhPpe_oC-5x-znqoY';
+            
+            // (Perbaikan) Mengganti nama 'supabase' menjadi 'supabaseClient' untuk menghindari konflik
+            // dengan variabel global 'supabase' dari library
+            const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+
+            // === 0. LOGIKA SPLASH SCREEN (Baru) ===
+            const splashScreen = document.getElementById('splashScreen');
+            const splashLogo = document.getElementById('splashLogo');
+            const splashText1 = document.getElementById('splashText1');
+            const splashText2 = document.getElementById('splashText2');
+            const mainApp = document.getElementById('mainApp');
+
+            // --- Mulai Animasi ---
+            // (Logo sudah terlihat)
+
+            // T+500ms: Tampilkan Teks 1
+            setTimeout(() => {
+                splashText1.classList.remove('opacity-0', 'translate-y-3');
+            }, 500);
+
+            // T+1500ms: Sembunyikan Teks 1, Tampilkan Teks 2
+            setTimeout(() => {
+                splashText1.classList.add('opacity-0', 'translate-y-3');
+                splashText2.classList.remove('opacity-0', 'translate-y-3');
+            }, 1700); // 1.2 detik setelah Teks 1 muncul
+
+            // T+3200ms: Sembunyikan Logo dan Teks 2
+            setTimeout(() => {
+                splashLogo.classList.add('opacity-0');
+                splashText2.classList.add('opacity-0', 'translate-y-3');
+            }, 3200); // 1.5 detik setelah Teks 2 muncul
+
+            // T+3700ms: Sembunyikan Splash Screen
+            setTimeout(() => {
+                splashScreen.classList.add('opacity-0');
+            }, 3700);
+
+            // T+4200ms: Hapus Splash Screen & Tampilkan Aplikasi Utama
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                mainApp.classList.remove('opacity-0'); // Memulai fade-in aplikasi utama
+                
+                // --- Pindahkan Inisialisasi ke sini ---
+                // (PENTING) Aplikasi baru diinisialisasi setelah splash selesai
+                initDragAndDrop();
+                
+                // (Diperbarui) Muat data dari Supabase
+                loadDataFromSupABASE();
+                
+                // Pastikan semua section (kecuali yg pertama) tersembunyi saat dimuat
+                // Kita gunakan style.display = 'none' agar tidak ada di layout
+                step2Section.style.display = 'none';
+                step3Section.style.display = 'none';
+                // --- Akhir Inisialisasi ---
+
+            }, 4200);
+            // === AKHIR LOGIKA SPLASH SCREEN ===
+
+
+            // === 1. DATA (Variabel Global) ===
+            // (Diperbarui) 'nameData' sekarang akan diisi oleh Supabase
+            let nameData = {};
+
+            // === 2. SELEKSI ELEMEN DOM ===
+            // Mengambil semua elemen yang kita butuhkan dari HTML
+            const categorySelect = document.getElementById('categorySelect');
+            const nameSelect = document.getElementById('nameSelect');
+            const uploadCard = document.getElementById('step3-upload');
+            const uploadTitle = document.getElementById('uploadTitle');
+            
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const loadingState = document.getElementById('loadingState');
+            const successState = document.getElementById('successState');
+            const successPath = document.getElementById('successPath');
+            const resetButton = document.getElementById('resetButton');
+
+            // --- Elemen Baru untuk Modal ---
+            const reviewButton = document.getElementById('reviewButton');
+            const reviewModal = document.getElementById('reviewModal');
+            const modalContent = document.getElementById('modalContent');
+            const closeModalButton = document.getElementById('closeModalButton');
+            const reviewImage = document.getElementById('reviewImage');
+            const reviewImageName = document.getElementById('reviewImageName');
+            const modalTutupButton = document.getElementById('modalTutupButton');
+            const modalGantiButton = document.getElementById('modalGantiButton');
+
+            // Bagian (section)
+            const step1Section = document.getElementById('step1-category');
+            const step2Section = document.getElementById('step2-name');
+            const step3Section = document.getElementById('step3-upload');
+
+            // Variabel untuk menyimpan pilihan pengguna
+            let selectedCategory = '';
+            let selectedName = '';
+            let uploadedFileUrl = null; 
+            let currentFile = null; 
+
+            // === 3. HELPER FUNCTIONS (Fungsi Pembantu) ===
+            
+            /**
+             * Fungsi untuk menampilkan section dengan transisi morph (max-height)
+             * (Diperbarui)
+             * @param {HTMLElement} el Elemen yang akan ditampilkan
+             */
+            function showSection(el) {
+                // Set 'display' ke 'block' terlebih dahulu agar transisi max-height berfungsi
+                el.style.display = 'block';
+                // Hapus 'section-hidden' untuk memicu transisi
+                el.classList.remove('section-hidden');
+                // Tambahkan 'section-visible' setelah sedikit delay
+                setTimeout(() => {
+                    el.classList.add('section-visible');
+                }, 10);
+            }
+
+            /**
+             * Fungsi untuk menyembunyikan section dengan transisi morph (max-height)
+             * (Diperbarui)
+             * @param {HTMLElement} el Elemen yang akan disembunyikan
+             */
+            function hideSection(el) {
+                // Hapus 'section-visible' untuk memulai transisi opacity/max-height
+                el.classList.remove('section-visible');
+                // Tambahkan 'section-hidden'
+                el.classList.add('section-hidden');
+                
+                // Set 'display' ke 'none' setelah transisi selesai
+                setTimeout(() => {
+                    // Cek jika section masih 'hidden' (tidak dibuka lagi)
+                    if (el.classList.contains('section-hidden')) {
+                        el.style.display = 'none';
+                    }
+                }, 500); // Sesuaikan dengan durasi transisi (duration-500)
+            }
+
+
+            /**
+             * Fungsi untuk membuat nama file yang aman (safe name)
+             * @param {string} name Nama asli
+             * @returns {string} Nama yang sudah diformat (lowercase, hyphen, safe-chars)
+             */
+            function sanitizeFileName(name) {
+                // (Diperbarui) Menghapus kode asrama (misal A03) sebelum sanitasi
+                // Ini akan mengubah "Yunus Muhammad A03" -> "yunus-muhammad"
+                const nameOnly = name.split(' ')[0]; // Ambil bagian pertama jika ada spasi
+                
+                return nameOnly
+                    .toLowerCase() // 1. Ubah ke lowercase
+                    .replace(/\s+/g, '-') // 2. Ganti spasi dengan hyphen
+                    .replace(/[^a-z0-9-]/g, ''); // 3. Hapus karakter tidak aman
+            }
+
+            // === 4. INISIALISASI & LOGIKA APLIKASI ===
+
+            /**
+             * (Baru) Memuat data dari Supabase
+             */
+            async function loadDataFromSupABASE() {
+                // (Perbaikan) Menggunakan 'supabaseClient'
+                const { data, error } = await supabaseClient
+                    .from('peserta')
+                    .select('nama, asrama');
+
+                if (error) {
+                    console.error('Error fetching data from Supabase:', error);
+                    alert('Gagal memuat data dari database. Cek konsol (F12) untuk detail.');
+                    return;
+                }
+
+                if (data) {
+                    // (Logika Diperbarui)
+                    // 1. Proses data mentah menjadi format yang kita inginkan
+                    let processedData = {};
+                    
+                    data.forEach(item => {
+                        const name = item.nama;
+                        const asrama = item.asrama;
+
+                        if (!asrama || !name) return; // Lewati jika data tidak lengkap
+
+                        // Tentukan Kategori (Daerah) berdasarkan huruf awal asrama
+                        // misal "A01" -> "Daerah A"
+                        const firstLetter = asrama.charAt(0).toUpperCase();
+                        const category = `Daerah ${firstLetter}`;
+
+                        // Buat array jika kategori ini baru
+                        if (!processedData[category]) {
+                            processedData[category] = [];
+                        }
+                        
+                        // (Logika Diperbarui)
+                        // Simpan objek {nama, asrama} agar bisa dipakai di langkah 2
+                        processedData[category].push({ nama: name, asrama: asrama });
+                    });
+
+                    // 2. Simpan data yang sudah diproses ke variabel global
+                    nameData = processedData;
+                    
+                    // 3. Panggil fungsi untuk mengisi dropdown pertama (Daerah)
+                    populateCategories();
+                }
+            }
+
+
+            /**
+             * (Inisialisasi) Memuat kategori (daerah) ke dropdown pertama
+             */
+            function populateCategories() {
+                // (Diperbarui) Ambil kategori dari 'nameData' yang sudah diproses
+                const categories = Object.keys(nameData);
+                
+                // Sortir kategori (Daerah A, Daerah B, ...)
+                categories.sort(); 
+                
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
+
+            /**
+             * (Event) Dipanggil saat kategori (daerah) diubah
+             */
+            function handleCategoryChange() {
+                selectedCategory = categorySelect.value;
+                
+                // Reset pilihan nama & sembunyikan kartu unggah
+                nameSelect.innerHTML = '<option value="" disabled selected>Pilih Nama...</option>';
+                hideSection(step3Section);
+
+                // Jika kategori valid, muat nama-nama
+                if (selectedCategory) {
+                    // (Logika Diperbarui)
+                    // 'students' adalah array of objects: [{nama: "...", asrama: "..."}, ...]
+                    const students = nameData[selectedCategory];
+                    
+                    // Sortir nama berdasarkan abjad (mengakses properti .nama)
+                    students.sort((a, b) => a.nama.localeCompare(b.nama)); 
+                    
+                    students.forEach(student => {
+                        // (Logika Diperbarui)
+                        // Buat nama gabungan: "Yunus Muhammad A03"
+                        const combinedName = `${student.nama} ${student.asrama}`;
+
+                        const option = document.createElement('option');
+                        // Gunakan nama gabungan untuk value dan text
+                        option.value = combinedName;
+                        option.textContent = combinedName;
+                        nameSelect.appendChild(option);
+                    });
+                    
+                    // Tampilkan dropdown nama
+                    showSection(step2Section);
+                } else {
+                    hideSection(step2Section);
+                }
+            }
+
+            /**
+             * (Event) Dipanggil saat nama diubah
+             */
+            function handleNameChange() {
+                selectedName = nameSelect.value;
+
+                if (selectedName) {
+                    // Tampilkan kartu unggah & atur judulnya
+                    // Judul sekarang menampilkan nama gabungan dan daerah
+                    uploadTitle.textContent = `${selectedName} (${selectedCategory})`;
+                    showSection(step3Section);
+                    // Reset kartu ke status dropzone
+                    resetUploadCard();
+                } else {
+                    hideSection(step3Section);
+                }
+            }
+
+            /**
+             * (Event) Dipanggil saat file dipilih (via klik atau drag-drop)
+             * @param {File} file File yang diunggah pengguna
+             */
+            function handleFile(file) {
+                if (!file || !file.type.startsWith('image/')) {
+                    alert('Harap pilih file gambar (JPG, PNG, atau WEBP).');
+                    return;
+                }
+
+                // --- Logika Pratinjau Baru ---
+                if (uploadedFileUrl) {
+                    URL.revokeObjectURL(uploadedFileUrl);
+                }
+                uploadedFileUrl = URL.createObjectURL(file);
+                currentFile = file; 
+                
+                // Langsung mulai proses unggah
+                startUploadProcess();
+            }
+
+            /**
+             * (Event) Dipanggil saat tombol "Konfirmasi & Unggah" diklik
+             */
+            function startUploadProcess() {
+                // Tampilkan status loading
+                dropZone.style.display = 'none';
+                loadingState.style.display = 'block';
+
+                // === SIMULASI PROSES UPLOAD ===
+                setTimeout(() => {
+                    // 1. Terapkan aturan penamaan
+                    // (Diperbarui) sanitizeFileName sekarang menangani nama gabungan
+                    const safeName = sanitizeFileName(selectedName);
+                    
+                    // 2. Tentukan path file
+                    // Kita paksakan ekstensi .jpg sesuai permintaan
+                    const newFileName = `${safeName}.jpg`;
+                    
+                    // (Diperbarui) Gunakan selectedCategory (Daerah A) untuk path
+                    const newPath = `/${selectedCategory}/${newFileName}`;
+
+                    // 3. Tampilkan status berhasil
+                    loadingState.style.display = 'none';
+                    successState.style.display = 'block';
+                    successPath.textContent = newPath;
+
+                    // console.log('File siap diunggah sebagai:', newFileName);
+                    // console.log('Tujuan Path:', newPath);
+
+                }, 1500); // Simulasi delay 1.5 detik
+            }
+
+
+            /**
+             * (Helper) Mengatur logika Drag and Drop
+             */
+            function initDragAndDrop() {
+                // Mencegah browser membuka file saat di-drag
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, preventDefaults, false);
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                });
+
+                // Memberi highlight saat file di-drag ke area dropzone
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.add('border-blue-500', 'bg-blue-50'), false);
+                });
+
+                // Menghapus highlight saat file keluar dari area
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => dropZone.classList.remove('border-blue-500', 'bg-blue-50'), false);
+                });
+
+                // Menangani file yang di-drop
+                dropZone.addEventListener('drop', e => {
+                    const dt = e.dataTransfer;
+                    const file = dt.files[0];
+                    handleFile(file);
+                }, false);
+            }
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            /**
+             * (Helper) Mengembalikan kartu unggah ke status awal
+             */
+            function resetUploadCard() {
+                fileInput.value = null; // Membersihkan file input
+                loadingState.style.display = 'none';
+                successState.style.display = 'none';
+                dropZone.style.display = 'block';
+
+                // Bersihkan URL sementara untuk cegah memory leak
+                if (uploadedFileUrl) {
+                    URL.revokeObjectURL(uploadedFileUrl);
+                    uploadedFileUrl = null;
+                }
+                currentFile = null; // Hapus file yang tersimpan
+            }
+
+            /**
+             * (Event) Mengatur ulang seluruh alur aplikasi
+             */
+            function resetApp() {
+                // 1. Sembunyikan semua langkah kecuali langkah 1
+                hideSection(step2Section);
+                hideSection(step3Section);
+
+                // 2. Reset nilai dropdown
+                categorySelect.value = '';
+                nameSelect.innerHTML = '<option value="" disabled selected>Pilih Nama...</option>';
+                
+                // 3. Reset variabel internal
+                selectedCategory = '';
+                selectedName = '';
+                
+                // 4. Pastikan kartu unggah juga ter-reset
+                resetUploadCard();
+
+                // 5. Scroll ke atas (penting di mobile)
+                window.scrollTo(0, 0);
+            }
+
+            // --- Fungsi Modal Baru ---
+
+            /**
+             * (Event) Menampilkan modal review
+             */
+            function showReviewModal() {
+                if (uploadedFileUrl) {
+                    reviewImage.src = uploadedFileUrl;
+                    reviewImageName.textContent = selectedName; // Tampilkan nama di bawah gambar
+                    reviewModal.classList.remove('hidden');
+                    // Tampilkan modal dengan animasi
+                    setTimeout(() => {
+                        reviewModal.classList.add('opacity-100');
+                        modalContent.classList.add('scale-100', 'opacity-100');
+                        modalContent.classList.remove('scale-95', 'opacity-0');
+                    }, 10);
+                } else {
+                    alert('Tidak ada file untuk ditampilkan.');
+                }
+            }
+
+            /**
+             * (Event) Menyembunyikan modal review
+             */
+            function hideReviewModal() {
+                // Sembunyikan modal dengan animasi
+                modalContent.classList.remove('scale-100', 'opacity-100');
+                modalContent.classList.add('scale-95', 'opacity-0');
+                reviewModal.classList.remove('opacity-100');
+                
+                setTimeout(() => {
+                    reviewModal.classList.add('hidden');
+                    reviewImage.src = ''; // Kosongkan src untuk menghemat memori
+                }, 300); // Sesuaikan dengan durasi transisi
+            }
+            // --- Akhir Fungsi Modal ---
+
+
+            // === 5. ATUR EVENT LISTENERS ===
+            categorySelect.addEventListener('change', handleCategoryChange);
+            nameSelect.addEventListener('change', handleNameChange);
+            fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+            resetButton.addEventListener('click', resetApp);
+            
+            // --- Event Listeners Modal ---
+            reviewButton.addEventListener('click', showReviewModal);
+            closeModalButton.addEventListener('click', hideReviewModal);
+            modalTutupButton.addEventListener('click', hideReviewModal);
+
+            modalGantiButton.addEventListener('click', () => {
+                hideReviewModal(); // Tutup modal
+                resetUploadCard(); // Kembali ke dropzone
+            });
+            
+            // Klik di luar modal (di background) untuk menutup
+            reviewModal.addEventListener('click', (e) => {
+                // Jika target klik adalah 'reviewModal' (background), tutup modal
+                if (e.target === reviewModal) {
+                    hideReviewModal();
+                }
+            });
+            // --- Akhir Event Listeners ---
+
+            // Inisialisasi
+            // (Dipindahkan ke dalam Logika Splash Screen)
+        });
+    </script>
+</body>
+</html>
+
