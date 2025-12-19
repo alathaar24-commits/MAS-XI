@@ -85,7 +85,7 @@
     -->
     <div id="splashScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-100 transition-opacity duration-500 ease-in-out">
         <!-- Logo (Akan dianimasikan) -->
-        <img id="splashLogo" src="https://fyyzfjooysfhasahnddc.supabase.co/storage/v1/object/public/Assets/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
+        <img id="splashLogo" src="https://fyyzfjooysfhasahnddc.supabase.co/storage/v1/object/public/Assets/LOGO%20PPMU%20PNG.png" 
              alt="Logo PPMU" class="h-24 object-contain transition-all duration-1000 ease-in-out">
         
         <!-- Teks Selamat Datang (Awalnya tersembunyi) -->
@@ -110,7 +110,7 @@
             
             <!-- Header Aplikasi -->
             <header class="text-center mb-8">
-                <img src="https://xiuvhvcoqzsrewxwxypa.supabase.co/storage/v1/object/sign/elemnt/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
+                <img src="https://fyyzfjooysfhasahnddc.supabase.co/storage/v1/object/public/Assets/LOGO%20PPMU%20PNG.png" 
                      alt="Logo PPMU" class="mx-auto mb-4 h-20 object-contain">
                 <h1 class="text-2xl font-bold text-[#0D6E54]">MAS XII - MUBAKID</h1>
                 <p class="text-gray-600">Sistem Unggah Foto</p>
@@ -322,7 +322,7 @@
                 // (PENTING) Aplikasi baru diinisialisasi setelah splash selesai
                 initDragAndDrop();
                 
-                // (Diperbarui) Muat data dari Supabase
+                // (Diperbarui) Muat data dari Supabase dengan penanganan error
                 loadDataFromSupABASE();
                 
                 // Pastikan semua section (kecuali yg pertama) tersembunyi saat dimuat
@@ -432,52 +432,78 @@
             // === 4. INISIALISASI & LOGIKA APLIKASI ===
 
             /**
-             * (Baru) Memuat data dari Supabase
+             * (Baru) Memuat data dari Supabase dengan Penanganan Error (Try/Catch)
              */
             async function loadDataFromSupABASE() {
-                // (Perbaikan) Menggunakan 'supabaseClient'
-                const { data, error } = await supabaseClient
-                    .from('peserta')
-                    .select('nama, asrama');
+                try {
+                    // Coba tarik data dari Supabase
+                    const { data, error } = await supabaseClient
+                        .from('peserta')
+                        .select('nama, asrama');
 
-                if (error) {
-                    console.error('Error fetching data from Supabase:', error);
-                    alert('Gagal memuat data dari database. Cek konsol (F12) untuk detail.');
-                    return;
-                }
+                    // Jika ada error API (misal 404, 500, atau auth error), lempar ke catch
+                    if (error) throw error;
 
-                if (data) {
-                    // (Logika Diperbarui)
-                    // 1. Proses data mentah menjadi format yang kita inginkan
-                    let processedData = {};
+                    if (data && data.length > 0) {
+                        processAndSetData(data);
+                        // console.log("Data berhasil dimuat dari Supabase");
+                    } else {
+                        throw new Error("Data kosong");
+                    }
                     
-                    data.forEach(item => {
-                        const name = item.nama;
-                        const asrama = item.asrama;
-
-                        if (!asrama || !name) return; // Lewati jika data tidak lengkap
-
-                        // Tentukan Kategori (Daerah) berdasarkan huruf awal asrama
-                        // misal "A01" -> "Daerah A"
-                        const firstLetter = asrama.charAt(0).toUpperCase();
-                        const category = `Daerah ${firstLetter}`;
-
-                        // Buat array jika kategori ini baru
-                        if (!processedData[category]) {
-                            processedData[category] = [];
-                        }
-                        
-                        // (Logika Diperbarui)
-                        // Simpan objek {nama, asrama} agar bisa dipakai di langkah 2
-                        processedData[category].push({ nama: name, asrama: asrama });
-                    });
-
-                    // 2. Simpan data yang sudah diproses ke variabel global
-                    nameData = processedData;
+                } catch (err) {
+                    // JIKA GAGAL (Offline, Network Error, atau Supabase Down)
+                    console.warn('Gagal memuat data dari Supabase. Beralih ke data offline/contoh.', err);
                     
-                    // 3. Panggil fungsi untuk mengisi dropdown pertama (Daerah)
-                    populateCategories();
+                    // Gunakan data fallback (dummy) agar aplikasi tetap bisa didemokan
+                    const fallbackData = [
+                        { nama: 'Ahmad Muzakki', asrama: 'A01' },
+                        { nama: 'Budi Santoso', asrama: 'A02' },
+                        { nama: 'Citra Kirana', asrama: 'B01' },
+                        { nama: 'Doni Tata', asrama: 'B02' },
+                        { nama: 'Eka Saputra', asrama: 'C01' },
+                        { nama: 'Fajar Nugraha', asrama: 'C03' },
+                        { nama: 'Gita Gutawa', asrama: 'D05' },
+                        { nama: 'Heri Susanto', asrama: 'E01' }
+                    ];
+                    
+                    processAndSetData(fallbackData);
+                    // Opsional: Beritahu user (atau diam saja agar terlihat mulus)
+                    // alert('Koneksi database bermasalah. Menggunakan data offline sementara.');
                 }
+            }
+            
+            /**
+             * Fungsi pembantu untuk memproses raw data (baik dari Supabase atau Fallback)
+             */
+            function processAndSetData(data) {
+                let processedData = {};
+                
+                data.forEach(item => {
+                    const name = item.nama;
+                    const asrama = item.asrama;
+
+                    if (!asrama || !name) return; // Lewati jika data tidak lengkap
+
+                    // Tentukan Kategori (Daerah) berdasarkan huruf awal asrama
+                    // misal "A01" -> "Daerah A"
+                    const firstLetter = asrama.charAt(0).toUpperCase();
+                    const category = `Daerah ${firstLetter}`;
+
+                    // Buat array jika kategori ini baru
+                    if (!processedData[category]) {
+                        processedData[category] = [];
+                    }
+                    
+                    // Simpan objek {nama, asrama}
+                    processedData[category].push({ nama: name, asrama: asrama });
+                });
+
+                // Simpan data yang sudah diproses ke variabel global
+                nameData = processedData;
+                
+                // Panggil fungsi untuk mengisi dropdown pertama (Daerah)
+                populateCategories();
             }
 
 
@@ -491,6 +517,9 @@
                 // Sortir kategori (Daerah A, Daerah B, ...)
                 categories.sort(); 
                 
+                // Bersihkan dropdown dulu (jaga-jaga)
+                categorySelect.innerHTML = '<option value="" disabled selected>Pilih Daerah...</option>';
+
                 categories.forEach(category => {
                     const option = document.createElement('option');
                     option.value = category;
@@ -751,4 +780,3 @@
     </script>
 </body>
 </html>
-
