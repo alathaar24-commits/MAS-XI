@@ -85,7 +85,7 @@
     -->
     <div id="splashScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-100 transition-opacity duration-500 ease-in-out">
         <!-- Logo (Akan dianimasikan) -->
-        <img id="splashLogo" src="https://xiuvhvcoqzsrewxwxypa.supabase.co/storage/v1/object/sign/elemnt/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
+        <img id="splashLogo" src="https://fyyzfjooysfhasahnddc.supabase.co/storage/v1/object/public/Assets/LOGO%20PPMU%20PNG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8yNmJjZWYzNi1hYjg1LTQ1ODYtOWYzMC0zNzI0ZDA0YjVjOGEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJlbGVtbnQvTE9HTyBQUE1VIFBORy5wbmciLCJpYXQiOjE3NjIwNTM5NDQsImV4cCI6MTc5MzU4OTk0NH0.CoJmIZwU86dpGfcosI_Cla9RLvWzn9tKgCctu6J7RyA" 
              alt="Logo PPMU" class="h-24 object-contain transition-all duration-1000 ease-in-out">
         
         <!-- Teks Selamat Datang (Awalnya tersembunyi) -->
